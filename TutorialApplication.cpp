@@ -146,9 +146,26 @@ bool BasicTutorial_00::mouseMoved( const OIS::MouseEvent &arg )
 //{
 //}
 
-//void BasicTutorial_00::volumeSelect(const OIS::MouseEvent &arg, OIS::MouseButtonID id )
-//{
-//}
+void BasicTutorial_00::volumeSelect()
+{
+	float left = min(startPoint.x, endPoint.x), 
+		top = min(startPoint.y, endPoint.y), 
+		right = max(startPoint.x, endPoint.x), 
+		bottom = max(startPoint.y, endPoint.y);
+	Ray topLeft = mCamera->getCameraToViewportRay(left, top);
+	Ray topRight = mCamera->getCameraToViewportRay(right, top);
+	Ray bottomLeft = mCamera->getCameraToViewportRay(left, bottom);
+	Ray bottomRight = mCamera->getCameraToViewportRay(right, bottom);
+	// The plane faces the counter clockwise position.
+	PlaneBoundedVolume vol;
+	int np = 100;
+	vol.planes.push_back(Plane(topLeft.getPoint(3), topRight.getPoint(3), 			bottomRight.getPoint(3)));         // front plane
+	vol.planes.push_back(Plane(topLeft.getOrigin(), topLeft.getPoint(np), 	topRight.getPoint(np)));         // top plane
+	vol.planes.push_back(Plane(topLeft.getOrigin(), bottomLeft.getPoint(np), 	topLeft.getPoint(np)));       // left plane
+	vol.planes.push_back(Plane(bottomLeft.getOrigin(), bottomRight.getPoint(np), 	bottomLeft.getPoint(np)));   // bottom plane
+	vol.planes.push_back(Plane(bottomRight.getOrigin(), topRight.getPoint(np), 	bottomRight.getPoint(np)));     // right plane 
+
+}
 
 bool BasicTutorial_00::mouseReleased( const OIS::MouseEvent &arg, OIS::MouseButtonID id )
 {

@@ -49,6 +49,7 @@ private:
 	virtual bool frameStarted(const FrameEvent &evt);
 
 	void stringCreate(const Ogre::String & prefix, int index, Ogre::String &out_name);
+	void volumeSelect();
 
 public:
 	BasicTutorial_00(void);
