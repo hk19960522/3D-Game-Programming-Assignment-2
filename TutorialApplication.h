@@ -33,6 +33,14 @@ private:
 
 	SOUND *mSound;
 	SceneNode *mParticleNode;
+
+	SelectionRectangle *mSelectRect;
+	Ogre::PlaneBoundedVolumeListSceneQuery *mVolQuery;
+	float lightAngle, lightRotateSpeed, lightRadius;
+
+	bool isPress, isMoving;
+	Ogre::Vector2 startPoint, endPoint;
+
 	virtual void createCamera();
 	virtual void createViewports();
 	virtual bool mouseMoved( const OIS::MouseEvent &arg );

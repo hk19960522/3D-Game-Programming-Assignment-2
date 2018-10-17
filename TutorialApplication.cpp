@@ -18,6 +18,13 @@ using namespace std;
 BasicTutorial_00::BasicTutorial_00(void) {
 	mSound = new SOUND;
 	mSound->init();
+
+	lightAngle = 0;
+	lightRotateSpeed = 30;
+	lightRadius = 1000.0;
+
+	isPress = false;
+	isMoving = false;
 }
 
 void BasicTutorial_00::createCamera(void)
@@ -51,6 +58,19 @@ void BasicTutorial_00::createScene(void)
 	mSceneMgr->setSkyBox(true, "Examples/SpaceSkyBox");
 	mSceneMgr->setShadowTechnique(Ogre::SHADOWTYPE_STENCIL_ADDITIVE);
 
+	// Selection Box
+	mSelectRect = new SelectionRectangle("SelectionRectangle");
+	mSceneMgr->getRootSceneNode()->createChildSceneNode()->attachObject(mSelectRect);
+
+	mVolQuery = mSceneMgr->createPlaneBoundedVolumeQuery(Ogre::PlaneBoundedVolumeList());
+
+	// Light
+	Light *light = mSceneMgr->createLight("Light");
+	light->setCastShadows(true);
+	light->setDiffuseColour(1, 1, 1);
+	light->setType(Ogre::Light::LT_POINT);
+	light->setPosition(1000, 500, 0);
+	
 	// plane
 	Plane plane(Vector3::UNIT_Y, 0); 
 	MeshManager::getSingleton().createPlane("ground", ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME, 
@@ -63,12 +83,6 @@ void BasicTutorial_00::createScene(void)
 	Entity *ent = mSceneMgr->createEntity("GroundEntity", "ground");
 	ent->setMaterialName("Examples/Rocky");
 	mSceneMgr->getRootSceneNode()->createChildSceneNode("PlaneNode", Ogre::Vector3(0, 0, 0))->attachObject(ent);
-
-	Ogre::Vector3 a(0, 0, 0);
-	ent = mSceneMgr->createEntity("TEST", "robot.mesh");
-	SceneNode *node1 = mSceneMgr->getRootSceneNode()->createChildSceneNode();
-	node1->attachObject(ent);
-	node1->setPosition(a);
 
 	// Robot
 	int robot_num = 36;
@@ -106,19 +120,25 @@ void BasicTutorial_00::createScene(void)
 		}
 	}
 
-	//int i =0;
-	//ent = mSceneMgr->createEntity("1", "robot.mesh");
-	//SceneNode *snode = mSceneMgr->getRootSceneNode()->createChildSceneNode();
-	//snode->attachObject(ent);
-	//snode->setPosition(radius * cos(radian * step * i), 0, radius * sin(radian * step * i));
-	//i++;
-	//ent = mSceneMgr->createEntity("2", "robot.mesh");
-	//snode = mSceneMgr->getRootSceneNode()->createChildSceneNode();
-	//snode->attachObject(ent);
-	//snode->setPosition(radius * cos(radian * step * i), 0, radius * sin(radian * step * i));
+	// Sphere
+	ent = mSceneMgr->createEntity("center_sphere", "sphere.mesh");
+	SceneNode *node = mSceneMgr->getRootSceneNode()->createChildSceneNode("SphereNode", Ogre::Vector3::ZERO);
+	node->attachObject(ent);
+	Ogre::AxisAlignedBox bb = ent->getBoundingBox();
+	Ogre::Real size = bb.getMaximum().x - bb.getMinimum().x;
+	size = 140.0 / size;
+	node->scale(size, size, size);
 }
 bool BasicTutorial_00::mouseMoved( const OIS::MouseEvent &arg )
 {
+	if (isPress) {
+		isMoving = true;
+		Ogre::Ray mRay = mTrayMgr->getCursorRay(mCamera);
+		endPoint = mTrayMgr->sceneToScreen(mCamera, mRay.getOrigin());
+
+		mSelectRect->setVisible(true);
+		mSelectRect->setCorners(min(startPoint.x, endPoint.x), min(startPoint.y, endPoint.y), max(startPoint.x, endPoint.x), max(startPoint.y, endPoint.y));
+	}
 	return BaseApplication::mouseMoved( arg);
 }
 
@@ -132,6 +152,12 @@ bool BasicTutorial_00::mouseMoved( const OIS::MouseEvent &arg )
 
 bool BasicTutorial_00::mouseReleased( const OIS::MouseEvent &arg, OIS::MouseButtonID id )
 {
+	if (!isMoving) {
+		//std::cout << "Is Single Press\n";
+	}
+
+	isMoving = isPress = false;
+	mSelectRect->setVisible(false);
 	return BaseApplication::mouseReleased( arg, id );
 }
 
@@ -140,11 +166,25 @@ bool BasicTutorial_00::mousePressed( const OIS::MouseEvent &arg, OIS::MouseButto
 	if (id == OIS::MB_Right) {
 		return BaseApplication::mousePressed( arg, id );
 	}
+
+	isPress = true;
+	
+	Ogre::Ray mRay = mTrayMgr->getCursorRay(mCamera);
+	startPoint = mTrayMgr->sceneToScreen(mCamera, mRay.getOrigin());
+
+	//std::cout << startPoint.x << " " << startPoint.y << std::endl;
 	return BaseApplication::mousePressed( arg, id );
 }
 
 bool BasicTutorial_00::frameStarted(const FrameEvent &evt)
 {
+	// Rotate Light
+	float radian = 3.1415 / 180.0;
+	Light *light = mSceneMgr->getLight("Light");
+	lightAngle += lightRotateSpeed * evt.timeSinceLastFrame;
+	light->setPosition(lightRadius * cos(radian * lightAngle), 500, lightRadius * sin(radian * lightAngle));
+	//std::cout << Ogre::Vector3(lightRadius * cos(radian * lightAngle), 500, lightRadius * sin(radian * lightAngle)) << std::endl;
+
     return BaseApplication::frameStarted(evt);
 }
 
