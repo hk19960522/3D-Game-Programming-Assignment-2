@@ -54,7 +54,7 @@ void BasicTutorial_00::createViewports(void)
 void BasicTutorial_00::createScene(void) 
 {
 	mSceneMgr->setAmbientLight( ColourValue( 0.9, 0.9, 0.9 ) ); 
-	mSceneMgr->setFog(Ogre::FOG_LINEAR, Ogre::ColourValue(1, 1, 1), 0, 1400, 1600);
+	//mSceneMgr->setFog(Ogre::FOG_LINEAR, Ogre::ColourValue(1, 1, 1), 0, 1400, 1600);
 	mSceneMgr->setSkyBox(true, "Examples/SpaceSkyBox");
 	mSceneMgr->setShadowTechnique(Ogre::SHADOWTYPE_STENCIL_ADDITIVE);
 
@@ -63,6 +63,7 @@ void BasicTutorial_00::createScene(void)
 	mSceneMgr->getRootSceneNode()->createChildSceneNode()->attachObject(mSelectRect);
 
 	mVolQuery = mSceneMgr->createPlaneBoundedVolumeQuery(Ogre::PlaneBoundedVolumeList());
+	mVolQuery->setQueryMask(1);
 
 	// Light
 	Light *light = mSceneMgr->createLight("Light");
@@ -149,22 +150,49 @@ bool BasicTutorial_00::mouseMoved( const OIS::MouseEvent &arg )
 void BasicTutorial_00::volumeSelect()
 {
 	float left = min(startPoint.x, endPoint.x), 
-		top = min(startPoint.y, endPoint.y), 
+		top = 1.0+min(startPoint.y, endPoint.y), 
 		right = max(startPoint.x, endPoint.x), 
-		bottom = max(startPoint.y, endPoint.y);
+		bottom = 1.0+max(startPoint.y, endPoint.y);
+
+	std::cout << left << " " << top << " " << right << " " << bottom << std::endl;
 	Ray topLeft = mCamera->getCameraToViewportRay(left, top);
 	Ray topRight = mCamera->getCameraToViewportRay(right, top);
 	Ray bottomLeft = mCamera->getCameraToViewportRay(left, bottom);
 	Ray bottomRight = mCamera->getCameraToViewportRay(right, bottom);
 	// The plane faces the counter clockwise position.
 	PlaneBoundedVolume vol;
-	int np = 100;
+	int np = 5000;
 	vol.planes.push_back(Plane(topLeft.getPoint(3), topRight.getPoint(3), 			bottomRight.getPoint(3)));         // front plane
 	vol.planes.push_back(Plane(topLeft.getOrigin(), topLeft.getPoint(np), 	topRight.getPoint(np)));         // top plane
 	vol.planes.push_back(Plane(topLeft.getOrigin(), bottomLeft.getPoint(np), 	topLeft.getPoint(np)));       // left plane
 	vol.planes.push_back(Plane(bottomLeft.getOrigin(), bottomRight.getPoint(np), 	bottomLeft.getPoint(np)));   // bottom plane
 	vol.planes.push_back(Plane(bottomRight.getOrigin(), topRight.getPoint(np), 	bottomRight.getPoint(np)));     // right plane 
 
+	PlaneBoundedVolumeList volList;
+	volList.push_back(vol);
+	mVolQuery->setVolumes(volList);
+	SceneQueryResult result = mVolQuery->execute();
+
+	deselectItem();
+	selectItem(result);
+}
+
+void BasicTutorial_00::selectItem(SceneQueryResult &result)
+{
+	SceneQueryResultMovableList::iterator it = result.movables.begin();
+	for (;it != result.movables.end(); it++) {
+		(*it)->getParentSceneNode()->showBoundingBox(true);
+		mSelectItem.push_back((*it));
+	}
+}
+
+void BasicTutorial_00::deselectItem()
+{
+	SceneQueryResultMovableList::iterator it = mSelectItem.begin();
+	for (;it != mSelectItem.end(); it++) {
+		(*it)->getParentSceneNode()->showBoundingBox(false);
+	}
+	mSelectItem.clear();
 }
 
 bool BasicTutorial_00::mouseReleased( const OIS::MouseEvent &arg, OIS::MouseButtonID id )
@@ -175,6 +203,7 @@ bool BasicTutorial_00::mouseReleased( const OIS::MouseEvent &arg, OIS::MouseButt
 
 	isMoving = isPress = false;
 	mSelectRect->setVisible(false);
+	volumeSelect();
 	return BaseApplication::mouseReleased( arg, id );
 }
 

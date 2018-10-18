@@ -36,6 +36,7 @@ private:
 
 	SelectionRectangle *mSelectRect;
 	Ogre::PlaneBoundedVolumeListSceneQuery *mVolQuery;
+	Ogre::SceneQueryResultMovableList mSelectItem;
 	float lightAngle, lightRotateSpeed, lightRadius;
 
 	bool isPress, isMoving;
@@ -50,6 +51,8 @@ private:
 
 	void stringCreate(const Ogre::String & prefix, int index, Ogre::String &out_name);
 	void volumeSelect();
+	void selectItem(SceneQueryResult &result);
+	void deselectItem();
 
 public:
 	BasicTutorial_00(void);
