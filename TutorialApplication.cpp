@@ -291,7 +291,7 @@ void BasicTutorial_00::deselectItem()
 bool BasicTutorial_00::mouseReleased( const OIS::MouseEvent &arg, OIS::MouseButtonID id )
 {
 	if (isRobotMoving) {
-		
+		if (raycastPlane(
 	}
 	else if (!isMouseMoving || (fabs(startPoint.x - endPoint.x) < 0.005 && fabs(endPoint.y - startPoint.y) < 0.005)) {
 		std::cout << "Is Single Press\n";

@@ -47,6 +47,8 @@ private:
 	Ogre::Vector2 startPoint, endPoint;
 
 	std::vector<Ogre::Entity *> robots;
+	Ogre::Vector3 destination;
+	float movingSpeed;
 
 	void createCamera00();
 	void createCamera01();
