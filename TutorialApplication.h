@@ -38,12 +38,15 @@ private:
 	Ogre::PlaneBoundedVolumeListSceneQuery *mVolQuery;
 	Ogre::RaySceneQuery *mRayQuery;
 	Ogre::SceneQueryResultMovableList mSelectItem;
+
 	float lightAngle, lightRotateSpeed, lightRadius;
 
 	int MOVABLE_MASK;
 	int PLANE_MASK;
-	bool isPress, isMoving;
+	bool isPress, isMouseMoving, isRobotMoving;
 	Ogre::Vector2 startPoint, endPoint;
+
+	std::vector<Ogre::Entity *> robots;
 
 	void createCamera00();
 	void createCamera01();
@@ -59,6 +62,7 @@ private:
 	void stringCreate(const Ogre::String & prefix, int index, Ogre::String &out_name);
 	void singleClickSelect();
 	void volumeSelect();
+	bool BasicTutorial_00::raycastPlane(Ogre::Vector3 &hitPoint);
 	void selectItem(SceneQueryResult &result);
 	void deselectItem();
 

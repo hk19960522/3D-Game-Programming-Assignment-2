@@ -24,10 +24,13 @@ BasicTutorial_00::BasicTutorial_00(void) {
 	lightRadius = 1000.0;
 
 	isPress = false;
-	isMoving = false;
+	isMouseMoving = false;
+	isRobotMoving = false;
 
 	MOVABLE_MASK = 1 << 10;
 	PLANE_MASK = 1 << 11;
+
+	//mSelectItem = SceneQueryResultMovableList();
 }
 
 void BasicTutorial_00::createCamera00()
@@ -46,10 +49,11 @@ void BasicTutorial_00::createCamera01()
 {
 	mCamera = mSceneMgr->createCamera("UpperCamera");
 
-	mCamera->setPosition(Ogre::Vector3(0,1400,0));
+	mCamera->setPosition(Ogre::Vector3(0,1400,1));
 	mCamera->lookAt(Ogre::Vector3(0,0,0));
 
 	mCamera->setNearClipDistance(5);
+	
 }
 
 void BasicTutorial_00::createCamera(void)
@@ -64,7 +68,7 @@ void BasicTutorial_00::createViewport00()
 	// Create one viewport, entire window
 	
 	vp = mWindow->addViewport(mCamera);
-	vp->setBackgroundColour(Ogre::ColourValue(1, 1, 0));
+	vp->setBackgroundColour(Ogre::ColourValue(0, 0, 0));
 
 	// Alter the camera aspect ratio to match the viewport
 	mCamera->setAspectRatio(
@@ -76,13 +80,18 @@ void BasicTutorial_00::createViewport01()
 	Ogre::Viewport* vp;
 	// Create one viewport, entire window
 	Camera *cam = mSceneMgr->getCamera("UpperCamera");
-	vp = mWindow->addViewport(cam, 1, 0.75, 0.25, 0.25, 0.25);
-	vp->setBackgroundColour(Ogre::ColourValue(0, 0, 0));
+	vp = mWindow->addViewport(cam, 1, 0.75, 0, 0.25, 0.25);
+	vp->setBackgroundColour(Ogre::ColourValue(1, 1, 0));
+	vp->setOverlaysEnabled(false);
+	vp->setSkiesEnabled(false);
+
+	//cam->lookAt(0, 0, 0);
 
 	// Alter the camera aspect ratio to match the viewport
-	mCamera->setAspectRatio(
+	cam->setAspectRatio(
 		4 * Ogre::Real(vp->getActualWidth()) / Ogre::Real(vp->getActualHeight()));
-
+	
+	std::cout << "Cameera : " << cam->getDirection() << std::endl;
 }
 
 void BasicTutorial_00::createViewports(void)
@@ -148,6 +157,9 @@ void BasicTutorial_00::createScene(void)
 		snode->setPosition(radius * cos(radian * step * i), 0, radius * sin(radian * step * i));
 		snode->lookAt(Ogre::Vector3(0, 0, 0), Ogre::Node::TransformSpace::TS_WORLD, Ogre::Vector3::UNIT_Z);
 		snode->rotate(Ogre::Quaternion(sqrt(0.5), 0, -sqrt(0.5), 0));
+
+		// Add entity into vector
+		robots.push_back(ent);
 	}
 
 	radius = 300;
@@ -158,7 +170,6 @@ void BasicTutorial_00::createScene(void)
 
 		ent = mSceneMgr->createEntity(ent_name, "robot.mesh");
 		ent->setQueryFlags(MOVABLE_MASK);
-
 		SceneNode *snode = mSceneMgr->getRootSceneNode()->createChildSceneNode();
 		snode->attachObject(ent);
 		snode->setPosition(radius * cos(radian * step * i), 0, radius * sin(radian * step * i));
@@ -167,6 +178,9 @@ void BasicTutorial_00::createScene(void)
 		if (!i) {
 			snode->scale(2, 2, 2);
 		}
+
+		// Add entity into vector
+		robots.push_back(ent);
 	}
 
 	// Sphere
@@ -182,7 +196,7 @@ void BasicTutorial_00::createScene(void)
 bool BasicTutorial_00::mouseMoved( const OIS::MouseEvent &arg )
 {
 	if (isPress) {
-		isMoving = true;
+		isMouseMoving = true;
 		Ogre::Ray mRay = mTrayMgr->getCursorRay(mCamera);
 		endPoint = mTrayMgr->sceneToScreen(mCamera, mRay.getOrigin());
 
@@ -194,6 +208,7 @@ bool BasicTutorial_00::mouseMoved( const OIS::MouseEvent &arg )
 
 void BasicTutorial_00::singleClickSelect()
 {
+	mRayQuery->setQueryMask(MOVABLE_MASK);
 	Ray ray = mCamera->getCameraToViewportRay(startPoint.x, 1.0+startPoint.y);
 
 	mRayQuery->setRay(ray);
@@ -202,7 +217,7 @@ void BasicTutorial_00::singleClickSelect()
 	RaySceneQueryResult &result = mRayQuery->execute();
 	
 	deselectItem();
-	if (result.begin()->movable) {
+	if (result.begin() != result.end() && result.begin()->movable) {
 		mSelectItem.push_back(result.begin()->movable);
 		result.begin()->movable->getParentSceneNode()->showBoundingBox(true);
 	}
@@ -215,7 +230,7 @@ void BasicTutorial_00::volumeSelect()
 		right = max(startPoint.x, endPoint.x), 
 		bottom = 1.0+max(startPoint.y, endPoint.y);
 
-	std::cout << left << " " << top << " " << right << " " << bottom << std::endl;
+	//std::cout << left << " " << top << " " << right << " " << bottom << std::endl;
 	Ray topLeft = mCamera->getCameraToViewportRay(left, top);
 	Ray topRight = mCamera->getCameraToViewportRay(right, top);
 	Ray bottomLeft = mCamera->getCameraToViewportRay(left, bottom);
@@ -238,6 +253,23 @@ void BasicTutorial_00::volumeSelect()
 	selectItem(result);
 }
 
+bool BasicTutorial_00::raycastPlane(Ogre::Vector3 &hitPoint)
+{
+	mRayQuery->setQueryMask(PLANE_MASK);
+	Ray ray = mCamera->getCameraToViewportRay(startPoint.x, 1.0+startPoint.y);
+	mRayQuery->setRay(ray);
+	mRayQuery->setSortByDistance(true);
+
+	RaySceneQueryResult &result = mRayQuery->execute();
+	if (result.begin() != result.end() && result.begin()->movable) {
+		hitPoint = ray.getPoint(result.begin()->distance);
+		hitPoint.y = 0;
+		return true;
+	}
+
+	return false;
+}
+
 void BasicTutorial_00::selectItem(SceneQueryResult &result)
 {
 	SceneQueryResultMovableList::iterator it = result.movables.begin();
@@ -258,7 +290,10 @@ void BasicTutorial_00::deselectItem()
 
 bool BasicTutorial_00::mouseReleased( const OIS::MouseEvent &arg, OIS::MouseButtonID id )
 {
-	if (!isMoving || (fabs(startPoint.x - endPoint.x) < 0.005 && fabs(endPoint.y - startPoint.y) < 0.005)) {
+	if (isRobotMoving) {
+		
+	}
+	else if (!isMouseMoving || (fabs(startPoint.x - endPoint.x) < 0.005 && fabs(endPoint.y - startPoint.y) < 0.005)) {
 		std::cout << "Is Single Press\n";
 		singleClickSelect();
 	}
@@ -266,22 +301,22 @@ bool BasicTutorial_00::mouseReleased( const OIS::MouseEvent &arg, OIS::MouseButt
 		volumeSelect();
 	}
 
-	isMoving = isPress = false;
+	isMouseMoving = isPress = false;
 	mSelectRect->setVisible(false);
 	return BaseApplication::mouseReleased( arg, id );
 }
 
 bool BasicTutorial_00::mousePressed( const OIS::MouseEvent &arg, OIS::MouseButtonID id )
 {
+	Ogre::Ray mRay = mTrayMgr->getCursorRay(mCamera);
+	endPoint = startPoint = mTrayMgr->sceneToScreen(mCamera, mRay.getOrigin());
+
 	if (id == OIS::MB_Right) {
+		isRobotMoving = true;
 		return BaseApplication::mousePressed( arg, id );
 	}
 
 	isPress = true;
-	
-	Ogre::Ray mRay = mTrayMgr->getCursorRay(mCamera);
-	endPoint = startPoint = mTrayMgr->sceneToScreen(mCamera, mRay.getOrigin());
-
 	//std::cout << startPoint.x << " " << startPoint.y << std::endl;
 	return BaseApplication::mousePressed( arg, id );
 }
@@ -295,6 +330,14 @@ bool BasicTutorial_00::frameStarted(const FrameEvent &evt)
 	light->setPosition(lightRadius * cos(radian * lightAngle), 500, lightRadius * sin(radian * lightAngle));
 	//std::cout << Ogre::Vector3(lightRadius * cos(radian * lightAngle), 500, lightRadius * sin(radian * lightAngle)) << std::endl;
 
+	// Robot Animation
+	for (int i=0;i<robots.size();i++) {
+		if (robots[i]->getAnimationState("Walk")->getEnabled()) continue;
+		Ogre::AnimationState *animationState = robots[i]->getAnimationState("Idle");
+		animationState->setLoop(true);
+		animationState->setEnabled(true);
+		animationState->addTime(evt.timeSinceLastFrame);
+	}
     return BaseApplication::frameStarted(evt);
 }
 
