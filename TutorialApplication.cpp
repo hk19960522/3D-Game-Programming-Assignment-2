@@ -25,9 +25,12 @@ BasicTutorial_00::BasicTutorial_00(void) {
 
 	isPress = false;
 	isMoving = false;
+
+	MOVABLE_MASK = 1 << 10;
+	PLANE_MASK = 1 << 11;
 }
 
-void BasicTutorial_00::createCamera(void)
+void BasicTutorial_00::createCamera00()
 {
 	mCamera = mSceneMgr->createCamera("PlayerCamera");
 
@@ -39,16 +42,53 @@ void BasicTutorial_00::createCamera(void)
 	mCameraMan = new OgreBites::SdkCameraMan(mCamera);   // create a default camera controller
 }
 
-void BasicTutorial_00::createViewports(void)
+void BasicTutorial_00::createCamera01()
+{
+	mCamera = mSceneMgr->createCamera("UpperCamera");
+
+	mCamera->setPosition(Ogre::Vector3(0,1400,0));
+	mCamera->lookAt(Ogre::Vector3(0,0,0));
+
+	mCamera->setNearClipDistance(5);
+}
+
+void BasicTutorial_00::createCamera(void)
+{
+	createCamera01();
+	createCamera00();
+}
+
+void BasicTutorial_00::createViewport00()
 {
 	Ogre::Viewport* vp;
 	// Create one viewport, entire window
+	
 	vp = mWindow->addViewport(mCamera);
-	vp->setBackgroundColour(Ogre::ColourValue(0, 0, 0));
+	vp->setBackgroundColour(Ogre::ColourValue(1, 1, 0));
 
 	// Alter the camera aspect ratio to match the viewport
 	mCamera->setAspectRatio(
 		Ogre::Real(vp->getActualWidth()) / Ogre::Real(vp->getActualHeight()));
+}
+
+void BasicTutorial_00::createViewport01()
+{
+	Ogre::Viewport* vp;
+	// Create one viewport, entire window
+	Camera *cam = mSceneMgr->getCamera("UpperCamera");
+	vp = mWindow->addViewport(cam, 1, 0.75, 0.25, 0.25, 0.25);
+	vp->setBackgroundColour(Ogre::ColourValue(0, 0, 0));
+
+	// Alter the camera aspect ratio to match the viewport
+	mCamera->setAspectRatio(
+		4 * Ogre::Real(vp->getActualWidth()) / Ogre::Real(vp->getActualHeight()));
+
+}
+
+void BasicTutorial_00::createViewports(void)
+{
+	createViewport00();
+	createViewport01();
 }
 
 void BasicTutorial_00::createScene(void) 
@@ -63,7 +103,10 @@ void BasicTutorial_00::createScene(void)
 	mSceneMgr->getRootSceneNode()->createChildSceneNode()->attachObject(mSelectRect);
 
 	mVolQuery = mSceneMgr->createPlaneBoundedVolumeQuery(Ogre::PlaneBoundedVolumeList());
-	mVolQuery->setQueryMask(1);
+	mVolQuery->setQueryMask(MOVABLE_MASK);
+
+	mRayQuery = mSceneMgr->createRayQuery(Ray());
+	mRayQuery->setQueryMask(MOVABLE_MASK);
 
 	// Light
 	Light *light = mSceneMgr->createLight("Light");
@@ -83,6 +126,7 @@ void BasicTutorial_00::createScene(void)
 		Ogre::Vector3::UNIT_Z);
 	Entity *ent = mSceneMgr->createEntity("GroundEntity", "ground");
 	ent->setMaterialName("Examples/Rocky");
+	ent->setQueryFlags(PLANE_MASK);
 	mSceneMgr->getRootSceneNode()->createChildSceneNode("PlaneNode", Ogre::Vector3(0, 0, 0))->attachObject(ent);
 
 	// Robot
@@ -97,6 +141,8 @@ void BasicTutorial_00::createScene(void)
 		std::cout << cos(radian * step * i) << " " << sin(radian * step * i) << std::endl;
 
 		ent = mSceneMgr->createEntity(ent_name, "robot.mesh");
+		ent->setQueryFlags(MOVABLE_MASK);
+
 		SceneNode *snode = mSceneMgr->getRootSceneNode()->createChildSceneNode();
 		snode->attachObject(ent);
 		snode->setPosition(radius * cos(radian * step * i), 0, radius * sin(radian * step * i));
@@ -111,6 +157,8 @@ void BasicTutorial_00::createScene(void)
 		std::cout << cos(radian * step * i) << " " << sin(radian * step * i) << std::endl;
 
 		ent = mSceneMgr->createEntity(ent_name, "robot.mesh");
+		ent->setQueryFlags(MOVABLE_MASK);
+
 		SceneNode *snode = mSceneMgr->getRootSceneNode()->createChildSceneNode();
 		snode->attachObject(ent);
 		snode->setPosition(radius * cos(radian * step * i), 0, radius * sin(radian * step * i));
@@ -123,6 +171,7 @@ void BasicTutorial_00::createScene(void)
 
 	// Sphere
 	ent = mSceneMgr->createEntity("center_sphere", "sphere.mesh");
+	ent->setQueryFlags(0);
 	SceneNode *node = mSceneMgr->getRootSceneNode()->createChildSceneNode("SphereNode", Ogre::Vector3::ZERO);
 	node->attachObject(ent);
 	Ogre::AxisAlignedBox bb = ent->getBoundingBox();
@@ -143,9 +192,21 @@ bool BasicTutorial_00::mouseMoved( const OIS::MouseEvent &arg )
 	return BaseApplication::mouseMoved( arg);
 }
 
-//void BasicTutorial_00::singleClickSelect ( const OIS::MouseEvent &arg, OIS::MouseButtonID id )
-//{
-//}
+void BasicTutorial_00::singleClickSelect()
+{
+	Ray ray = mCamera->getCameraToViewportRay(startPoint.x, 1.0+startPoint.y);
+
+	mRayQuery->setRay(ray);
+	mRayQuery->setSortByDistance(true);
+
+	RaySceneQueryResult &result = mRayQuery->execute();
+	
+	deselectItem();
+	if (result.begin()->movable) {
+		mSelectItem.push_back(result.begin()->movable);
+		result.begin()->movable->getParentSceneNode()->showBoundingBox(true);
+	}
+}
 
 void BasicTutorial_00::volumeSelect()
 {
@@ -162,16 +223,16 @@ void BasicTutorial_00::volumeSelect()
 	// The plane faces the counter clockwise position.
 	PlaneBoundedVolume vol;
 	int np = 5000;
-	vol.planes.push_back(Plane(topLeft.getPoint(3), topRight.getPoint(3), 			bottomRight.getPoint(3)));         // front plane
-	vol.planes.push_back(Plane(topLeft.getOrigin(), topLeft.getPoint(np), 	topRight.getPoint(np)));         // top plane
-	vol.planes.push_back(Plane(topLeft.getOrigin(), bottomLeft.getPoint(np), 	topLeft.getPoint(np)));       // left plane
-	vol.planes.push_back(Plane(bottomLeft.getOrigin(), bottomRight.getPoint(np), 	bottomLeft.getPoint(np)));   // bottom plane
-	vol.planes.push_back(Plane(bottomRight.getOrigin(), topRight.getPoint(np), 	bottomRight.getPoint(np)));     // right plane 
+	vol.planes.push_back(Plane(topLeft.getPoint(3), topRight.getPoint(3), bottomRight.getPoint(3)));         // front plane
+	vol.planes.push_back(Plane(topLeft.getOrigin(), topLeft.getPoint(np), topRight.getPoint(np)));         // top plane
+	vol.planes.push_back(Plane(topLeft.getOrigin(), bottomLeft.getPoint(np), topLeft.getPoint(np)));       // left plane
+	vol.planes.push_back(Plane(bottomLeft.getOrigin(), bottomRight.getPoint(np), bottomLeft.getPoint(np)));   // bottom plane
+	vol.planes.push_back(Plane(bottomRight.getOrigin(), topRight.getPoint(np), bottomRight.getPoint(np)));     // right plane 
 
 	PlaneBoundedVolumeList volList;
 	volList.push_back(vol);
 	mVolQuery->setVolumes(volList);
-	SceneQueryResult result = mVolQuery->execute();
+	SceneQueryResult &result = mVolQuery->execute();
 
 	deselectItem();
 	selectItem(result);
@@ -197,13 +258,16 @@ void BasicTutorial_00::deselectItem()
 
 bool BasicTutorial_00::mouseReleased( const OIS::MouseEvent &arg, OIS::MouseButtonID id )
 {
-	if (!isMoving) {
-		//std::cout << "Is Single Press\n";
+	if (!isMoving || (fabs(startPoint.x - endPoint.x) < 0.005 && fabs(endPoint.y - startPoint.y) < 0.005)) {
+		std::cout << "Is Single Press\n";
+		singleClickSelect();
+	}
+	else {
+		volumeSelect();
 	}
 
 	isMoving = isPress = false;
 	mSelectRect->setVisible(false);
-	volumeSelect();
 	return BaseApplication::mouseReleased( arg, id );
 }
 
@@ -216,7 +280,7 @@ bool BasicTutorial_00::mousePressed( const OIS::MouseEvent &arg, OIS::MouseButto
 	isPress = true;
 	
 	Ogre::Ray mRay = mTrayMgr->getCursorRay(mCamera);
-	startPoint = mTrayMgr->sceneToScreen(mCamera, mRay.getOrigin());
+	endPoint = startPoint = mTrayMgr->sceneToScreen(mCamera, mRay.getOrigin());
 
 	//std::cout << startPoint.x << " " << startPoint.y << std::endl;
 	return BaseApplication::mousePressed( arg, id );

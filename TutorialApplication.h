@@ -36,13 +36,20 @@ private:
 
 	SelectionRectangle *mSelectRect;
 	Ogre::PlaneBoundedVolumeListSceneQuery *mVolQuery;
+	Ogre::RaySceneQuery *mRayQuery;
 	Ogre::SceneQueryResultMovableList mSelectItem;
 	float lightAngle, lightRotateSpeed, lightRadius;
 
+	int MOVABLE_MASK;
+	int PLANE_MASK;
 	bool isPress, isMoving;
 	Ogre::Vector2 startPoint, endPoint;
 
+	void createCamera00();
+	void createCamera01();
 	virtual void createCamera();
+	void createViewport00();
+	void createViewport01();
 	virtual void createViewports();
 	virtual bool mouseMoved( const OIS::MouseEvent &arg );
     virtual bool mousePressed( const OIS::MouseEvent &arg, OIS::MouseButtonID id );
@@ -50,6 +57,7 @@ private:
 	virtual bool frameStarted(const FrameEvent &evt);
 
 	void stringCreate(const Ogre::String & prefix, int index, Ogre::String &out_name);
+	void singleClickSelect();
 	void volumeSelect();
 	void selectItem(SceneQueryResult &result);
 	void deselectItem();
