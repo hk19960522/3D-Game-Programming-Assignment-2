@@ -27,7 +27,7 @@ using namespace Ogre;
 class BasicTutorial_00 : public BaseApplication
 {
 private:
-	void initParticleSystemForExplosion();
+	void initParticleSystemForExplosion(Ogre::SceneNode *rootNode);
 	void setOffParticleSystem(
 	Ogre::SceneNode *fNode, const Ogre::String &pname, const Ogre::Vector3 &pos); 
 
@@ -46,7 +46,10 @@ private:
 	bool isPress, isMouseMoving, isRobotMoving;
 	Ogre::Vector2 startPoint, endPoint;
 
-	std::vector<Ogre::Entity *> robots;
+	std::vector<Ogre::SceneNode*> robots;
+	Ogre::Vector3 destination;
+	float movingSpeed;
+	float distanceEpslion;
 
 	void createCamera00();
 	void createCamera01();
@@ -65,6 +68,11 @@ private:
 	bool BasicTutorial_00::raycastPlane(Ogre::Vector3 &hitPoint);
 	void selectItem(SceneQueryResult &result);
 	void deselectItem();
+	void startRobots(Real time);
+	void stopRobots();
+	void detectCollision(float time);
+	void robotToRobotCollision(float robot1_radian, float robot2_radian, SceneNode* robot1, SceneNode* robot2, float time);
+	void robotToSphereCollision(float robot_radian, float sphere_radian, SceneNode* robot, SceneNode* sphere, float time);
 
 public:
 	BasicTutorial_00(void);

@@ -27,6 +27,9 @@ BasicTutorial_00::BasicTutorial_00(void) {
 	isMouseMoving = false;
 	isRobotMoving = false;
 
+	movingSpeed = 40.0;
+	distanceEpslion = 20.0;
+
 	MOVABLE_MASK = 1 << 10;
 	PLANE_MASK = 1 << 11;
 
@@ -139,7 +142,7 @@ void BasicTutorial_00::createScene(void)
 	mSceneMgr->getRootSceneNode()->createChildSceneNode("PlaneNode", Ogre::Vector3(0, 0, 0))->attachObject(ent);
 
 	// Robot
-	int robot_num = 36;
+	int robot_num = 25;
 	float radius = 200;
 	float radian = 3.1415 / 180.0;
 	float step = 360.0 / robot_num;
@@ -158,8 +161,8 @@ void BasicTutorial_00::createScene(void)
 		snode->lookAt(Ogre::Vector3(0, 0, 0), Ogre::Node::TransformSpace::TS_WORLD, Ogre::Vector3::UNIT_Z);
 		snode->rotate(Ogre::Quaternion(sqrt(0.5), 0, -sqrt(0.5), 0));
 
-		// Add entity into vector
-		robots.push_back(ent);
+		// Add scene node into vector
+		robots.push_back(snode);
 	}
 
 	radius = 300;
@@ -177,10 +180,12 @@ void BasicTutorial_00::createScene(void)
 		snode->rotate(Ogre::Quaternion(sqrt(0.5), 0, -sqrt(0.5), 0));
 		if (!i) {
 			snode->scale(2, 2, 2);
+			initParticleSystemForExplosion(snode);
+			setOffParticleSystem(mParticleNode, "explosion", Vector3::ZERO);
 		}
 
-		// Add entity into vector
-		robots.push_back(ent);
+		// Add scene node into vector
+		robots.push_back(snode);
 	}
 
 	// Sphere
@@ -204,6 +209,43 @@ bool BasicTutorial_00::mouseMoved( const OIS::MouseEvent &arg )
 		mSelectRect->setCorners(min(startPoint.x, endPoint.x), min(startPoint.y, endPoint.y), max(startPoint.x, endPoint.x), max(startPoint.y, endPoint.y));
 	}
 	return BaseApplication::mouseMoved( arg);
+}
+
+
+bool BasicTutorial_00::mouseReleased( const OIS::MouseEvent &arg, OIS::MouseButtonID id )
+{
+	if (id == OIS::MB_Right) {
+		if (raycastPlane(destination)) {
+			isRobotMoving = true;
+			std::cout << "MOVE\n";
+		}
+	}
+	else if (!isMouseMoving || (fabs(startPoint.x - endPoint.x) < 0.005 && fabs(endPoint.y - startPoint.y) < 0.005)) {
+		std::cout << "Is Single Press\n";
+		singleClickSelect();
+	}
+	else {
+		volumeSelect();
+	}
+
+	isMouseMoving = isPress = false;
+	mSelectRect->setVisible(false);
+	return BaseApplication::mouseReleased( arg, id );
+}
+
+bool BasicTutorial_00::mousePressed( const OIS::MouseEvent &arg, OIS::MouseButtonID id )
+{
+	Ogre::Ray mRay = mTrayMgr->getCursorRay(mCamera);
+	endPoint = startPoint = mTrayMgr->sceneToScreen(mCamera, mRay.getOrigin());
+
+	if (id == OIS::MB_Right) {
+		return BaseApplication::mousePressed( arg, id );
+	}
+
+	isPress = true;
+	isRobotMoving = false;
+	//std::cout << startPoint.x << " " << startPoint.y << std::endl;
+	return BaseApplication::mousePressed( arg, id );
 }
 
 void BasicTutorial_00::singleClickSelect()
@@ -281,6 +323,7 @@ void BasicTutorial_00::selectItem(SceneQueryResult &result)
 
 void BasicTutorial_00::deselectItem()
 {
+	stopRobots();
 	SceneQueryResultMovableList::iterator it = mSelectItem.begin();
 	for (;it != mSelectItem.end(); it++) {
 		(*it)->getParentSceneNode()->showBoundingBox(false);
@@ -288,37 +331,93 @@ void BasicTutorial_00::deselectItem()
 	mSelectItem.clear();
 }
 
-bool BasicTutorial_00::mouseReleased( const OIS::MouseEvent &arg, OIS::MouseButtonID id )
+void BasicTutorial_00::startRobots(Real time)
 {
-	if (isRobotMoving) {
-		
-	}
-	else if (!isMouseMoving || (fabs(startPoint.x - endPoint.x) < 0.005 && fabs(endPoint.y - startPoint.y) < 0.005)) {
-		std::cout << "Is Single Press\n";
-		singleClickSelect();
-	}
-	else {
-		volumeSelect();
-	}
+	SceneQueryResultMovableList::iterator it = mSelectItem.begin();
+	while(it != mSelectItem.end()) {
+		SceneNode* snode = (*it)->getParentSceneNode();
+		Entity* ent = static_cast<Entity*>(snode->getAttachedObject(0));
+		AnimationState* animationState = ent->getAnimationState("Walk");
 
-	isMouseMoving = isPress = false;
-	mSelectRect->setVisible(false);
-	return BaseApplication::mouseReleased( arg, id );
+		// Enable walk animation
+		animationState->setEnabled(true);
+		animationState->setLoop(true);
+		animationState->addTime(time);
+
+		// Change scene node's position and rotation
+		snode->lookAt(destination, Ogre::Node::TransformSpace::TS_WORLD);
+		snode->rotate(Ogre::Quaternion(sqrt(0.5), 0, sqrt(0.5), 0));
+		
+		Vector3 direction = destination - snode->getPosition();
+		float length = direction.normalise();
+
+		if (length <= distanceEpslion) {
+			snode->showBoundingBox(false);
+			Entity* ent = static_cast<Entity*>(snode->getAttachedObject(0));
+			AnimationState* animationState = ent->getAnimationState("Walk");
+			animationState->setEnabled(false);
+
+			mSelectItem.erase(it++);
+			continue;
+		}
+		snode->setPosition(snode->getPosition() + direction * (movingSpeed * time));
+
+		it++;
+	}
 }
 
-bool BasicTutorial_00::mousePressed( const OIS::MouseEvent &arg, OIS::MouseButtonID id )
+void BasicTutorial_00::stopRobots()
 {
-	Ogre::Ray mRay = mTrayMgr->getCursorRay(mCamera);
-	endPoint = startPoint = mTrayMgr->sceneToScreen(mCamera, mRay.getOrigin());
+	SceneQueryResultMovableList::iterator it = mSelectItem.begin();
+	while(it != mSelectItem.end()) {
+		SceneNode* snode = (*it)->getParentSceneNode();
+		Entity* ent = static_cast<Entity*>(snode->getAttachedObject(0));
+		AnimationState* animationState = ent->getAnimationState("Walk");
+		animationState->setEnabled(false);
+		it++;
+	}
+}
 
-	if (id == OIS::MB_Right) {
-		isRobotMoving = true;
-		return BaseApplication::mousePressed( arg, id );
+void BasicTutorial_00::detectCollision(float time)
+{
+	int robot_num = robots.size();
+	// Robot to Sphere
+	
+	SceneNode* sphere = mSceneMgr->getSceneNode("SphereNode");
+	for (int i=0; i<robot_num; i++) {
+		robotToSphereCollision(20.0, 70.0, robots[i], sphere, time);
 	}
 
-	isPress = true;
-	//std::cout << startPoint.x << " " << startPoint.y << std::endl;
-	return BaseApplication::mousePressed( arg, id );
+	// Robot to Robot
+	for (int i=0; i<robot_num; i++) {
+		for (int j=i+1; j<robot_num; j++) {
+			robotToRobotCollision(20.0 * robots[i]->getScale().x, 20.0 * robots[j]->getScale().x, robots[i], robots[j], time);
+			
+		}
+	}
+}
+
+void BasicTutorial_00::robotToRobotCollision(float robot1_radian, float robot2_radian, SceneNode* robot1, SceneNode* robot2, float time)
+{
+	Vector3 direction = robot2->getPosition() - robot1->getPosition();
+	float max_distance = robot1_radian + robot2_radian;
+	float distance = direction.normalise();
+
+	if (distance <= max_distance) {
+		robot1->setPosition(robot1->getPosition() - direction * movingSpeed * time / 2);
+		robot2->setPosition(robot2->getPosition() + direction * movingSpeed * time / 2);
+	}
+}
+
+void BasicTutorial_00::robotToSphereCollision(float robot_radian, float sphere_radian, SceneNode* robot, SceneNode* sphere, float time)
+{
+	Vector3 direction = sphere->getPosition() - robot->getPosition();
+	float max_distance = robot_radian + sphere_radian;
+	float distance = direction.normalise();
+
+	if (distance <= max_distance) {
+		robot->setPosition(robot->getPosition() - direction * movingSpeed * time);
+	}
 }
 
 bool BasicTutorial_00::frameStarted(const FrameEvent &evt)
@@ -330,10 +429,16 @@ bool BasicTutorial_00::frameStarted(const FrameEvent &evt)
 	light->setPosition(lightRadius * cos(radian * lightAngle), 500, lightRadius * sin(radian * lightAngle));
 	//std::cout << Ogre::Vector3(lightRadius * cos(radian * lightAngle), 500, lightRadius * sin(radian * lightAngle)) << std::endl;
 
+	if (isRobotMoving) {
+		startRobots(evt.timeSinceLastFrame);
+		detectCollision(evt.timeSinceLastFrame);
+	}
+
 	// Robot Animation
 	for (int i=0;i<robots.size();i++) {
-		if (robots[i]->getAnimationState("Walk")->getEnabled()) continue;
-		Ogre::AnimationState *animationState = robots[i]->getAnimationState("Idle");
+		Entity* robot = static_cast<Entity*>(robots[i]->getAttachedObject(0));
+		if (robot->getAnimationState("Walk")->getEnabled()) continue;
+		Ogre::AnimationState *animationState = robot->getAnimationState("Idle");
 		animationState->setLoop(true);
 		animationState->setEnabled(true);
 		animationState->addTime(evt.timeSinceLastFrame);
@@ -346,9 +451,8 @@ void BasicTutorial_00::stringCreate(const Ogre::String & prefix, int index, Ogre
 	out_name= prefix + Ogre::StringConverter::toString(static_cast<int>(index));
 }
 
-void BasicTutorial_00::initParticleSystemForExplosion() {
-	mParticleNode = static_cast<SceneNode*>(
-		mSceneMgr->getRootSceneNode()->createChild());
+void BasicTutorial_00::initParticleSystemForExplosion(Ogre::SceneNode *rootNode) {
+	mParticleNode = static_cast<SceneNode*>(rootNode->createChild());
 	ParticleSystem* p = mSceneMgr->createParticleSystem(
 		"explosion", "Examples/GreenyNimbus");
 
