@@ -20,7 +20,7 @@ BasicTutorial_00::BasicTutorial_00(void) {
 	mSound->init();
 
 	lightAngle = 0;
-	lightRotateSpeed = 30;
+	lightRotateSpeed = -30;
 	lightRadius = 1000.0;
 
 	isPress = false;
@@ -106,7 +106,7 @@ void BasicTutorial_00::createViewports(void)
 void BasicTutorial_00::createScene(void) 
 {
 	mSceneMgr->setAmbientLight( ColourValue( 0.9, 0.9, 0.9 ) ); 
-	//mSceneMgr->setFog(Ogre::FOG_LINEAR, Ogre::ColourValue(1, 1, 1), 0, 1400, 1600);
+	mSceneMgr->setFog(Ogre::FOG_LINEAR, Ogre::ColourValue(1, 1, 1), 0, 1400, 1600);
 	mSceneMgr->setSkyBox(true, "Examples/SpaceSkyBox");
 	mSceneMgr->setShadowTechnique(Ogre::SHADOWTYPE_STENCIL_ADDITIVE);
 
@@ -142,7 +142,7 @@ void BasicTutorial_00::createScene(void)
 	mSceneMgr->getRootSceneNode()->createChildSceneNode("PlaneNode", Ogre::Vector3(0, 0, 0))->attachObject(ent);
 
 	// Robot
-	int robot_num = 25;
+	int robot_num = 20;
 	float radius = 200;
 	float radian = 3.1415 / 180.0;
 	float step = 360.0 / robot_num;
@@ -244,7 +244,6 @@ bool BasicTutorial_00::mousePressed( const OIS::MouseEvent &arg, OIS::MouseButto
 
 	isPress = true;
 	isRobotMoving = false;
-	//std::cout << startPoint.x << " " << startPoint.y << std::endl;
 	return BaseApplication::mousePressed( arg, id );
 }
 
@@ -334,6 +333,8 @@ void BasicTutorial_00::deselectItem()
 void BasicTutorial_00::startRobots(Real time)
 {
 	SceneQueryResultMovableList::iterator it = mSelectItem.begin();
+
+	bool isEmpty = mSelectItem.empty();
 	while(it != mSelectItem.end()) {
 		SceneNode* snode = (*it)->getParentSceneNode();
 		Entity* ent = static_cast<Entity*>(snode->getAttachedObject(0));
@@ -363,6 +364,10 @@ void BasicTutorial_00::startRobots(Real time)
 		snode->setPosition(snode->getPosition() + direction * (movingSpeed * time));
 
 		it++;
+	}
+
+	if (mSelectItem.empty() && !isEmpty) {
+		mSound->play();
 	}
 }
 
@@ -425,8 +430,8 @@ bool BasicTutorial_00::frameStarted(const FrameEvent &evt)
 	// Rotate Light
 	float radian = 3.1415 / 180.0;
 	Light *light = mSceneMgr->getLight("Light");
-	lightAngle += lightRotateSpeed * evt.timeSinceLastFrame;
-	light->setPosition(lightRadius * cos(radian * lightAngle), 500, lightRadius * sin(radian * lightAngle));
+	Quaternion q(Degree(lightRotateSpeed * evt.timeSinceLastFrame), Vector3::UNIT_Y); 
+	light->setPosition(q * light->getPosition());
 	//std::cout << Ogre::Vector3(lightRadius * cos(radian * lightAngle), 500, lightRadius * sin(radian * lightAngle)) << std::endl;
 
 	if (isRobotMoving) {
